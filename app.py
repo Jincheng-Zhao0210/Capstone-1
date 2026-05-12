@@ -9,7 +9,6 @@ class MultiTaskDistilBERT(DistilBertPreTrainedModel):
         super().__init__(config)
         self.distilbert = DistilBertModel(config)
         self.classifier = nn.Linear(config.dim, 2)
-        self.regressor = nn.Linear(config.dim, 1)
         self.dropout = nn.Dropout(0.1)
         self.post_init()
 
@@ -17,8 +16,7 @@ class MultiTaskDistilBERT(DistilBertPreTrainedModel):
         outputs = self.distilbert(input_ids=input_ids, attention_mask=attention_mask)
         pooled = outputs.last_hidden_state[:, 0]
         logits = self.classifier(self.dropout(pooled))
-        quality_pred = self.regressor(pooled).squeeze(-1)
-        return {"logits": logits, "quality_pred": quality_pred}
+        return {"logits": logits}
 
 
 st.set_page_config(page_title="AFRCC Note Grader", layout="wide")
@@ -31,7 +29,7 @@ MODEL_PATH = "Danube1/Capstone"
 @st.cache_resource
 def load_model():
     tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
-    model = MultiTaskDistilBERT.from_pretrained(MODEL_PATH)
+    model = MultiTaskDistilBERT.from_pretrained(MODEL_PATH, ignore_mismatched_sizes=True)
     model.eval()
     return tokenizer, model
 
@@ -59,34 +57,22 @@ try:
             prediction = torch.argmax(probs).item()
             confidence = float(torch.max(probs))
 
-            # If your labels were reversed during training:
-            # prediction 0 = Good
-            # prediction 1 = Incomplete
+            # Your model appears to use:
+            # 0 = Good
+            # 1 = Incomplete
             label = "Good" if prediction == 0 else "Incomplete"
 
-            raw_score = float(out["quality_pred"].item())
-
-            # Prevent huge broken scores
-            if raw_score <= 1:
-                quality_score = raw_score * 100
-            else:
-                quality_score = raw_score
-
-            quality_score = max(0, min(100, quality_score))
-
-            col1, col2, col3 = st.columns(3)
+            col1, col2 = st.columns(2)
             col1.metric("Classification", label)
-            col2.metric("Quality Grade", f"{quality_score:.1f}/100")
-            col3.metric("Confidence", f"{confidence:.1%}")
+            col2.metric("Confidence", f"{confidence:.1%}")
 
-            if quality_score < 65 or label == "Incomplete":
+            if label == "Incomplete":
                 st.error("🚩 Result: Fails quality check. Recommend human review.")
             else:
                 st.success("✅ Result: Meets AFRCC documentation standards.")
 
             with st.expander("Debug Info"):
                 st.write("Raw prediction:", prediction)
-                st.write("Raw quality score:", raw_score)
                 st.write("Class probabilities:", probs.tolist())
 
         else:
