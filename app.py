@@ -59,7 +59,10 @@ try:
 
             probs = torch.softmax(out["logits"], dim=-1)[0]
             prediction = torch.argmax(probs).item()
-            confidence = float(torch.max(probs))
+            raw_confidence = float(torch.max(probs))
+
+            # Cap displayed confidence to avoid unrealistic 100%
+            display_confidence = min(raw_confidence, 0.95)
 
             # Your model appears to use:
             # 0 = Good
@@ -68,7 +71,7 @@ try:
 
             col1, col2 = st.columns(2)
             col1.metric("Classification", label)
-            col2.metric("Confidence", f"{confidence:.1%}")
+            col2.metric("Model Confidence Estimate", f"{display_confidence:.1%}")
 
             if label == "Incomplete":
                 st.error("🚩 Result: This note may need human review or additional SOAPIE details.")
@@ -86,6 +89,8 @@ try:
 
             with st.expander("Debug Info"):
                 st.write("Raw prediction:", prediction)
+                st.write("Raw model confidence:", raw_confidence)
+                st.write("Displayed confidence:", display_confidence)
                 st.write("Class probabilities:", probs.tolist())
 
         else:
