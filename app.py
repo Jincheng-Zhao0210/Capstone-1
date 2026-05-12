@@ -3,7 +3,7 @@ import torch
 from transformers import AutoTokenizer, DistilBertModel, DistilBertPreTrainedModel
 from torch import nn
 
-# Re-define the Multi-Task Architecture
+
 class MultiTaskDistilBERT(DistilBertPreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
@@ -20,7 +20,7 @@ class MultiTaskDistilBERT(DistilBertPreTrainedModel):
         quality_pred = self.regressor(pooled).squeeze(-1)
         return {"logits": logits, "quality_pred": quality_pred}
 
-# UI Setup
+
 st.set_page_config(page_title="AFRCC Note Grader", layout="wide")
 st.title("📝 AFRCC Case Note Quality Grader")
 st.markdown("Evaluation based on SOAPIE standards and AFRCC training KPIs.")
@@ -35,37 +35,65 @@ def load_model():
     model.eval()
     return tokenizer, model
 
+
 try:
     tokenizer, model = load_model()
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
 
     case_note = st.text_area("Paste Case Note Summary:", height=250)
 
     if st.button("Grade Note"):
         if case_note.strip():
-            inputs = tokenizer(case_note, return_tensors='pt', truncation=True, max_length=512).to(device)
+            inputs = tokenizer(
+                case_note,
+                return_tensors="pt",
+                truncation=True,
+                max_length=512
+            ).to(device)
+
             with torch.no_grad():
                 out = model(**inputs)
-            
-            probs = torch.softmax(out['logits'], dim=-1)[0]
-            prediction = torch.argmax(probs).item()
 
-            quality_score = max(0, min(100, float(out['quality_pred'].item())))
-            
-            # Results columns
+            probs = torch.softmax(out["logits"], dim=-1)[0]
+            prediction = torch.argmax(probs).item()
+            confidence = float(torch.max(probs))
+
+            # If your labels were reversed during training:
+            # prediction 0 = Good
+            # prediction 1 = Incomplete
+            label = "Good" if prediction == 0 else "Incomplete"
+
+            raw_score = float(out["quality_pred"].item())
+
+            # Prevent huge broken scores
+            if raw_score <= 1:
+                quality_score = raw_score * 100
+            else:
+                quality_score = raw_score
+
+            quality_score = max(0, min(100, quality_score))
+
             col1, col2, col3 = st.columns(3)
-            label = "Good" if prediction == 1 else "Incomplete"
             col1.metric("Classification", label)
             col2.metric("Quality Grade", f"{quality_score:.1f}/100")
-            col3.metric("Confidence", f"{float(torch.max(probs)):.1%}")
+            col3.metric("Confidence", f"{confidence:.1%}")
 
-            if quality_score < 65 or prediction == 0:
-                st.error("🚩 **Result:** Fails quality check. Recommend human review.")
+            if quality_score < 65 or label == "Incomplete":
+                st.error("🚩 Result: Fails quality check. Recommend human review.")
             else:
-                st.success("✅ **Result:** Meets AFRCC documentation standards.")
+                st.success("✅ Result: Meets AFRCC documentation standards.")
+
+            with st.expander("Debug Info"):
+                st.write("Raw prediction:", prediction)
+                st.write("Raw quality score:", raw_score)
+                st.write("Class probabilities:", probs.tolist())
+
         else:
             st.warning("Please enter note text.")
-except Exception as e:
-    st.error(f"Model loading failed: {e}. Check that the Hugging Face model path is correct and the repo is public.")
 
+except Exception as e:
+    st.error(
+        f"Model loading failed: {e}. "
+        "Check that the Hugging Face model path is correct and the repo is public."
+    )
