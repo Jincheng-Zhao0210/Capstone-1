@@ -19,9 +19,10 @@ class MultiTaskDistilBERT(DistilBertPreTrainedModel):
         return {"logits": logits}
 
 
-st.set_page_config(page_title="AFRCC Note Grader", layout="wide")
-st.title("📝 AFRCC Case Note Quality Grader")
-st.markdown("Evaluation based on SOAPIE standards and AFRCC training KPIs.")
+st.set_page_config(page_title="AFRCC Case Note Checker", layout="wide")
+
+st.title("📝 AFRCC Case Note Completeness Checker")
+st.markdown("Checks whether a case note meets SOAPIE documentation standards.")
 
 MODEL_PATH = "Danube1/Capstone"
 
@@ -29,7 +30,10 @@ MODEL_PATH = "Danube1/Capstone"
 @st.cache_resource
 def load_model():
     tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
-    model = MultiTaskDistilBERT.from_pretrained(MODEL_PATH, ignore_mismatched_sizes=True)
+    model = MultiTaskDistilBERT.from_pretrained(
+        MODEL_PATH,
+        ignore_mismatched_sizes=True
+    )
     model.eval()
     return tokenizer, model
 
@@ -41,7 +45,7 @@ try:
 
     case_note = st.text_area("Paste Case Note Summary:", height=250)
 
-    if st.button("Grade Note"):
+    if st.button("Check Note"):
         if case_note.strip():
             inputs = tokenizer(
                 case_note,
@@ -67,9 +71,18 @@ try:
             col2.metric("Confidence", f"{confidence:.1%}")
 
             if label == "Incomplete":
-                st.error("🚩 Result: Fails quality check. Recommend human review.")
+                st.error("🚩 Result: This note may need human review or additional SOAPIE details.")
             else:
-                st.success("✅ Result: Meets AFRCC documentation standards.")
+                st.success("✅ Result: This note appears to meet SOAPIE documentation standards.")
+
+            with st.expander("SOAPIE Checklist"):
+                st.write("A strong case note usually includes:")
+                st.write("- Subjective: what the veteran reports")
+                st.write("- Objective: observable facts or actions")
+                st.write("- Assessment: coordinator judgment")
+                st.write("- Plan: next steps")
+                st.write("- Intervention: support/resources provided")
+                st.write("- Evaluation: response or follow-up outcome")
 
             with st.expander("Debug Info"):
                 st.write("Raw prediction:", prediction)
