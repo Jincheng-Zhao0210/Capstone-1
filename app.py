@@ -50,7 +50,8 @@ try:
             
             probs = torch.softmax(out['logits'], dim=-1)[0]
             prediction = torch.argmax(probs).item()
-            quality_score = float(out['quality_pred'].item()) * 100
+
+            quality_score = max(0, min(100, float(out['quality_pred'].item())))
             
             # Results columns
             col1, col2, col3 = st.columns(3)
