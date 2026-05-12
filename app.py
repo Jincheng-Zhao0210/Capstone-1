@@ -25,7 +25,7 @@ st.set_page_config(page_title="AFRCC Note Grader", layout="wide")
 st.title("📝 AFRCC Case Note Quality Grader")
 st.markdown("Evaluation based on SOAPIE standards and AFRCC training KPIs.")
 
-MODEL_PATH = "Danube1/Capstone/soapie_slm_small_distilbert"
+MODEL_PATH = "Danube1/Capstone"
 
 
 @st.cache_resource
